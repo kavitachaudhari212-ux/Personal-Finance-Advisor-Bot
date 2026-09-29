@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Personal Finance Advisor</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f4f6fb;--card:#fff;--ink:#1f2937;--mut:#6b7280;--pri:#2f5fd0;--ok:#16a34a;--bad:#dc2626;--bd:#e5e7eb}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111827;--card:#1f2937;--ink:#f3f4f6;--mut:#9ca3af;--bd:#374151;--pri:#5b8def}}
+:root[data-theme="dark"]{--bg:#111827;--card:#1f2937;--ink:#f3f4f6;--mut:#9ca3af;--bd:#374151;--pri:#5b8def}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--pri);color:#fff;padding:12px 16px;font-weight:700}
+nav{display:flex;flex-wrap:wrap;gap:4px;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--bd)}
+nav button{background:none;border:0;color:var(--ink);padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit}
+nav button.on{background:var(--pri);color:#fff}
+main{max-width:900px;margin:16px auto;padding:0 12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px}
+.grid .card{margin:0}.stat b{display:block;font-size:22px;margin-top:4px}.mut{color:var(--mut);font-size:13px}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+form{display:flex;flex-wrap:wrap;gap:8px}form>*{flex:1;min-width:110px}
+input,select{padding:8px;border:1px solid var(--bd);border-radius:6px;font:inherit;background:var(--bg);color:var(--ink)}
+.btn{background:var(--pri);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer;font:inherit}
+.x{background:none;border:0;color:var(--bad);cursor:pointer}
+.bar{background:var(--bd);border-radius:6px;height:10px;overflow:hidden;margin:4px 0 10px}.bar i{display:block;height:100%;background:var(--ok)}.bar i.o{background:var(--bad)}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px;border-bottom:1px solid var(--bd);font-size:14px}
+pre{white-space:pre-wrap;font:inherit;line-height:1.55;margin:0}
+</style></head><body>
+<header>💰 Personal Finance Advisor</header>
+<nav id="nav"></nav>
+<main id="app"></main>
+<script>
+const CATS=["Rent/Housing","Food","Transport","Utilities","Entertainment","Health","Shopping","Education","Other"];
+const TABS=["Dashboard","Income","Expenses","Budget","Savings","Advisor"];
+let S={tx:[],budgets:{},goals:[]},tab="Dashboard",month=new Date().toISOString().slice(0,7);
+try{const r=localStorage.getItem("fin1");if(r)S=JSON.parse(r)}catch(e){}
+const save=()=>{try{localStorage.setItem("fin1",JSON.stringify(S))}catch(e){}};
+const $=s=>document.querySelector(s),fm=n=>"₹"+Math.round(n).toLocaleString("en-IN");
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function sum(){const t=S.tx.filter(x=>x.date.startsWith(month));
+ const inc=t.filter(x=>x.type=="in").reduce((a,x)=>a+x.amt,0),by={};
+ t.filter(x=>x.type=="out").forEach(x=>by[x.cat]=(by[x.cat]||0)+x.amt);
+ const exp=Object.values(by).reduce((a,b)=>a+b,0);
+ const over=Object.entries(S.budgets).filter(([c,l])=>(by[c]||0)>l).map(([c,l])=>[c,by[c],l]);
+ return{inc,exp,by,sav:inc-exp,rate:inc?Math.round((inc-exp)/inc*1000)/10:0,over}}
+function advice(s){
+ if(!s.inc)return"Add your income for this month to get advice.";
+ const L=[],score=Math.max(0,Math.min(100,Math.round(50+s.rate*2.5-s.over.length*8)));
+ L.push(`Financial health score: ${score}/100`,`Income ${fm(s.inc)} | Expenses ${fm(s.exp)} | Savings rate ${s.rate}%`,"");
+ s.over.forEach(([c,a,l])=>L.push(`- Overspending in ${c}: ${fm(a)} vs limit ${fm(l)}. Cut about ${fm(a-l)}.`));
+ const top=Object.entries(s.by).sort((a,b)=>b[1]-a[1])[0];
+ if(top)L.push(`- Biggest category: ${top[0]} (${Math.round(top[1]/s.exp*100)}% of spending). Review it first.`);
+ if(s.rate<20)L.push("- Savings rate is under the recommended 20%. Automate a transfer on payday.");
+ else L.push("- Great job: you are saving 20% or more. Consider investing the surplus.");
+ L.push("",`50/30/20 plan for your income:`,`- Needs: ${fm(s.inc*.5)}`,`- Wants: ${fm(s.inc*.3)}`,`- Savings: ${fm(s.inc*.2)}`,
+ `- Emergency fund target (6 months): ${fm(Math.max(s.exp,s.inc*.5)*6)}`);
+ return L.join("\n")}
+function monthBar(){return`<div class="card"><form onsubmit="return false"><input type="month" value="${month}" onchange="month=this.value||month;render()"></form></div>`}
+function bars(o,lim){return Object.entries(o).map(([c,v])=>{const l=lim&&lim[c];const p=l?Math.min(v/l*100,100):100;
+ return`<div>${esc(c)}: ${fm(v)}${l?" / "+fm(l):""}</div><div class="bar"><i class="${l&&v>l?"o":""}" style="width:${p}%"></i></div>`}).join("")}
+const V={
+Dashboard(){const s=sum();return monthBar()+`<div class="grid">
+<div class="card stat"><span class="mut">Income</span><b>${fm(s.inc)}</b></div>
+<div class="card stat"><span class="mut">Expenses</span><b>${fm(s.exp)}</b></div>
+<div class="card stat"><span class="mut">Savings</span><b class="${s.sav>=0?"ok":"bad"}">${fm(s.sav)}</b></div>
+<div class="card stat"><span class="mut">Savings rate</span><b>${s.rate}%</b></div></div>
+${s.over.length?`<div class="card bad"><b>Overspending:</b> ${s.over.map(o=>o[0]).join(", ")}</div>`:""}
+<div class="card"><h3>Expense breakdown</h3>${s.exp?bars(s.by):'<span class="mut">No expenses this month.</span>'}</div>
+<div class="card"><h3>Advice</h3><pre>${esc(advice(s))}</pre></div>`},
+Income(){return rec("in")},Expenses(){return rec("out")},
+Budget(){const s=sum();return monthBar()+`<div class="card"><h3>Set monthly limit</h3><form onsubmit="return setB(event)">
+<select id="bc">${CATS.map(c=>`<option>${c}</option>`).join("")}</select><input id="bl" type="number" min="1" placeholder="Limit" required><button class="btn">Save</button></form></div>
+<div class="card"><h3>Budget performance</h3>${Object.keys(S.budgets).length?bars(Object.fromEntries(Object.keys(S.budgets).map(c=>[c,s.by[c]||0])),S.budgets):'<span class="mut">No limits set.</span>'}</div>`},
+Savings(){return`<div class="card"><h3>New savings goal</h3><form onsubmit="return addG(event)"><input id="gn" placeholder="Goal (Emergency fund...)" required><input id="gt" type="number" min="1" placeholder="Target" required><button class="btn">Add</button></form></div>
+${S.goals.map(g=>`<div class="card"><b>${esc(g.name)}</b> ${fm(g.saved)} / ${fm(g.target)}<div class="bar"><i style="width:${Math.min(g.saved/g.target*100,100)}%"></i></div>
+<form onsubmit="return addS(event,${g.id})"><input type="number" min="1" placeholder="Add savings" required><button class="btn">Add</button><button type="button" class="x" onclick="delG(${g.id})">Delete</button></form></div>`).join("")}`},
+Advisor(){const s=sum();return monthBar()+`<div class="card"><h3>Spending analysis &amp; plan</h3><pre>${esc(advice(s))}</pre>
+<p class="mut">Rule-based advice computed in your browser. Data stays on this device.</p></div>
+<div class="card"><button class="btn" onclick="exportD()">Download my data (JSON)</button> <button class="x" onclick="if(confirm('Delete all data?')){S={tx:[],budgets:{},goals:[]};save();render()}">Reset all</button></div>`}};
+function rec(t){const rows=S.tx.filter(x=>x.type==t).sort((a,b)=>b.date.localeCompare(a.date));
+ return`<div class="card"><h3>${t=="in"?"Income":"Expenses"}</h3><form onsubmit="return addT(event,'${t}')">
+${t=="in"?'<input id="tc" placeholder="Source (Salary...)" required>':`<select id="tc">${CATS.map(c=>`<option>${c}</option>`).join("")}</select><input id="td" placeholder="Description">`}
+<input id="ta" type="number" step="0.01" min="0.01" placeholder="Amount" required><input id="tdt" type="date" value="${new Date().toISOString().slice(0,10)}"><button class="btn">Add</button></form></div>
+<div class="card tw"><table><tr><th>Date</th><th>${t=="in"?"Source":"Category"}</th><th>Amount</th><th></th></tr>
+${rows.map(x=>`<tr><td>${x.date}</td><td>${esc(x.cat)}${x.desc?" – "+esc(x.desc):""}</td><td>${fm(x.amt)}</td><td><button class="x" onclick="delT(${x.id})">✕</button></td></tr>`).join("")||'<tr><td colspan="4" class="mut">Nothing yet.</td></tr>'}</table></div>`}
+function addT(e,t){e.preventDefault();const a=parseFloat($("#ta").value);if(!(a>0))return false;
+ S.tx.push({id:Date.now(),type:t,cat:$("#tc").value.trim(),desc:t=="out"?$("#td").value.trim():"",amt:a,date:$("#tdt").value});save();render();return false}
+function delT(i){S.tx=S.tx.filter(x=>x.id!=i);save();render()}
+function setB(e){e.preventDefault();S.budgets[$("#bc").value]=parseFloat($("#bl").value);save();render();return false}
+function addG(e){e.preventDefault();S.goals.push({id:Date.now(),name:$("#gn").value.trim(),target:parseFloat($("#gt").value),saved:0});save();render();return false}
+function addS(e,i){e.preventDefault();const g=S.goals.find(x=>x.id==i);g.saved+=parseFloat(e.target.querySelector("input").value);save();render();return false}
+function delG(i){S.goals=S.goals.filter(x=>x.id!=i);save();render()}
+function exportD(){const a=document.createElement("a");a.href="data:application/json,"+encodeURIComponent(JSON.stringify(S,null,1));a.download="finance-data.json";a.click()}
+function render(){$("#nav").innerHTML=TABS.map(t=>`<button class="${t==tab?"on":""}" onclick="tab='${t}';render()">${t}</button>`).join("");$("#app").innerHTML=V[tab]()}
+render();
+</script></body></html>
